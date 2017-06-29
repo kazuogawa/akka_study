@@ -1,16 +1,17 @@
 import akka.actor._
-
 import scala.concurrent.Await
 import scala.util.control
 
 
 object akka_study {
   def main(args: Array[String]): Unit = {
-    P177.start
-    P179.start
-    P180.start
-    P182.start
-    P183.start
+//    P177.start
+//    P179.start
+//    P180.start
+//    P182.start
+//    P183.start
+//    P184.start
+    P185.start
   }
 
   //このアクター終了をモニタリング
@@ -237,5 +238,65 @@ object akka_study {
         println("postRestart: " + reason)
       }
     }
+  }
+
+
+  //ホットスワップ(メソッドの処理を置き換える)
+  object P184{
+    def start: Unit ={
+      val system = ActorSystem()
+      val hotSwapRef = system.actorOf(Props[HotSwapActor], name = "hotSwapRef")
+      hotSwapRef ! Active
+      hotSwapRef ! Idle
+      hotSwapRef ! Active
+      hotSwapRef ! "unbecome"
+      Thread.sleep(1000)
+      system.terminate()
+    }
+
+    sealed trait State
+    case class Active() extends State
+    case class Idle() extends State
+
+    class HotSwapActor extends Actor {
+      import context._
+
+      override def receive: Receive = {
+        case Active => println("original")
+        case Idle => {
+          //receiveの処理がsubstitureに置き換わる
+          become(substiture)
+          self ! Active
+        }
+      }
+
+      def substiture: Receive = {
+        case Active => println("substiture")
+        case _ => {
+          println("unbecome")
+          //unbecomeすると、becomeの次の行に戻るため、self ! Activeが動く
+          unbecome
+        }
+      }
+    }
+  }
+
+  //リモートアクターの使い方
+  //akka-remoteをlibraryとして追加する必要あり
+  //ここ参照　http://qiita.com/suin/items/09758a72d19b72d83a75
+  object P185 {
+    import com.typesafe.config.ConfigFactory
+    import java.io.File
+    def start: Unit = {
+      //resourcesにapplication.confを置いてみた
+      val configFile = getClass.getClassLoader.getResource("application.conf").getFile
+
+      val config = ConfigFactory.parseFile(new File(configFile))
+      println(config)
+      val system = ActorSystem("client-system", config)
+      val remoteActor = system.actorSelection(config.getString("app.remote-system.remote-actor"))
+      remoteActor ! "actorSelection"
+    }
+
   }
 }
