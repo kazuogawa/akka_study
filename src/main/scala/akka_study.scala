@@ -1,7 +1,7 @@
 import akka.actor._
 import scala.concurrent.Await
 import scala.util.control
-
+import scala.concurrent.duration._
 
 object akka_study {
   def main(args: Array[String]): Unit = {
@@ -11,7 +11,8 @@ object akka_study {
 //    P182.start
 //    P183.start
 //    P184.start
-    P185.start
+//    P185.start
+    P186.start
   }
 
   //このアクター終了をモニタリング
@@ -53,7 +54,6 @@ object akka_study {
 
   object P178{
     import akka.actor.SupervisorStrategy._
-    import scala.concurrent.duration._
 
     class HelloActor extends Actor {
       import context._
@@ -298,5 +298,45 @@ object akka_study {
       remoteActor ! "actorSelection"
     }
 
+  }
+
+  //スケジューリング
+  object P186{
+
+    def start: Unit = {
+      val system = ActorSystem()
+      val scheduleActorRef = system.actorOf(Props[ScheduleActor], name ="scheduleActor")
+      scheduleActorRef ! "Once"
+      scheduleActorRef ! "OnceFnc"
+      scheduleActorRef ! "Loop"
+
+      Thread.sleep(1000000)
+      system.terminate()
+    }
+
+    class ScheduleActor extends Actor {
+      import context._
+
+      override def receive: Receive = {
+        //1分後に自分自身にrettyと送信する
+        case "Once" => system.scheduler.scheduleOnce(1 minutes, self, "retry")
+        //1分後に指定したscheduleOnce内の関数を実行
+        case "OnceFnc" => system.scheduler.scheduleOnce(1 minutes){
+          println("send retry")
+          val subref = actorOf(Props[SubActor], name = "subActor")
+          subref ! "retry"
+        }
+        //10秒後に開始。1分ごとに自分にretryを送信
+        case "Loop" => system.scheduler.schedule(10 seconds, 1 minutes, self, "retry")
+        case "retry" => println("retry success!!")
+      }
+    }
+
+    class SubActor extends Actor {
+      override def receive: Receive = {
+        case "retry" => println("subActorが指定されました")
+        case _ => println("subactor get other param")
+      }
+    }
   }
 }
